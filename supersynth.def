@@ -1,0 +1,77 @@
+Bootstrap: docker
+From: nialljb/fw-supersynth:latest
+
+%help
+    SuperSynth Singularity Image
+
+    Synthesizes multiple MRI contrasts (T1w, T2w, FLAIR) and a brain
+    segmentation from a single input scan using FreeSurfer mri_super_synth.
+
+    Requires a CUDA-compatible GPU (--nv flag).
+
+    Usage:
+        singularity exec --nv supersynth.sif \
+            --input <input.nii.gz> --output <output_dir>
+
+    For full options:
+        singularity exec --nv supersynth.sif --help
+
+%labels
+    Author Niall Bourke
+    Version 0.1.0
+    Description SuperSynth: deep learning MRI contrast synthesis
+    License MIT
+
+%environment
+    export HOME=/root
+    export FREESURFER_HOME=/usr/local/freesurfer/7-dev
+    export PATH="${FREESURFER_HOME}/bin:${PATH}"
+    export CUDA_VISIBLE_DEVICES=0
+    export LANG="C.UTF-8"
+
+%files
+    ./ /app/
+    start.sh /start.sh
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+
+    # apt's HTTPS method drops to the _apt user (setgroups) which fails under
+    # fakeroot. Tell apt to keep methods running as root instead.
+    mkdir -p /etc/apt/apt.conf.d
+    echo 'APT::Sandbox::User "root";' > /etc/apt/apt.conf.d/99no-sandbox
+
+    # Install pip (not present in base image — mirrors first step of Dockerfile)
+    apt-get update -qq
+    apt-get install -y --no-install-recommends python3-pip
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+    # Install Python dependencies
+    # (FreeSurfer does not need to be sourced at build time — %environment handles runtime)
+    python3 -m pip install --no-cache-dir nibabel numpy pandas
+
+    # Set permissions on entry points
+    chmod +rx /app/run_supersynth.py
+    chmod +rx /start.sh
+
+    # Clean up caches to reduce image size
+    find /root/.cache -type f -delete 2>/dev/null || true
+    find /tmp -name "*.pyc" -delete 2>/dev/null || true
+
+    echo "SuperSynth Singularity image built successfully!"
+
+%runscript
+    exec bash /start.sh "$@"
+
+%test
+    echo "Testing FreeSurfer..."
+    which mri_super_synth || exit 1
+    which mri_convert || exit 1
+
+    echo "Testing Python environment..."
+    python3 -c "import nibabel, numpy, pandas; print('Python deps OK')"
+
+    echo "Testing entry point..."
+    python3 /app/run_supersynth.py --help > /dev/null || exit 1
+
+    echo "All tests passed!"
