@@ -1,0 +1,41 @@
+{
+  "name": "supersynth",
+  "version": "0.1.0",
+  "description": "SuperSynth: deep learning MRI contrast synthesis via FreeSurfer mri_super_synth",
+  "author": "Niall Bourke",
+  "maintainer": "Niall Bourke <niall.bourke@kcl.ac.uk>",
+  "license": "MIT",
+  "url": "https://github.com/UNITY-Physics/fw-supersynth",
+
+  "config": {
+    "mode": {
+      "default": "invivo",
+      "description": "SuperSynth processing mode",
+      "type": "string",
+      "choices": ["invivo", "exvivo"]
+    }
+  },
+
+  "container_info": {
+    "type": "singularity",
+    "base_image": "nialljb/fw-supersynth:latest",
+    "entry_point": "bash /start.sh",
+    "requires_gpu": true,
+    "min_gpu_vram_gb": 16
+  },
+
+  "hpc_config": {
+    "image_path": "/home/{hpc_username}/cortex/modules/supersynth.sif",
+    "command_template": "bash /start.sh --input {input_file} --output {output_dir}",
+    "input_type": "acquisition",
+    "input_pattern": ".*\\.nii(\\.gz)?$",
+    "input_subdir": "anat",
+    "requires_derivative": null,
+    "output_name": "supersynth",
+    "default_cpus": 4,
+    "default_mem": "64G",
+    "default_gpus": 1,
+    "default_time": "01:00:00",
+    "description": "Synthetic MRI contrast generation (T1w, T2w, FLAIR) and brain segmentation"
+  }
+}
