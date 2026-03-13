@@ -1,2 +1,6 @@
 data/*
 !data/.gitkeep
+
+# Ignore Apptainer cache directory
+.apptainer_cache
+

@@ -26,28 +26,46 @@ SuperSynth uses deep learning to generate multiple MRI contrasts from a single s
 - CUDA-compatible GPU with 16 GB+ VRAM (`--nv` flag required)
 - 64 GB system RAM (tool peaks above 32 GB)
 
+> The FreeSurfer license is embedded in the `nialljb/fw-supersynth` base image — no separate license file is needed.
+
 ---
 
 ## Building the Image
 
-### Option 1 — Definition file (recommended)
+### On AWS EC2 (recommended)
 
-Requires fakeroot to be enabled for your user by a system admin:
+See the full end-to-end guide: [docs/aws-guide.md](docs/aws-guide.md)
+
+**Quick start** (`g4dn.7xlarge`, 300 GB EBS root, Deep Learning Base AMI):
+
+```bash
+# Authenticate to Docker Hub — avoids 429 rate-limit errors on AWS public IPs
+docker login
+
+# Clone and build
+git clone <repo-url> && cd nan-supersynth
+./build_singularity.sh
+```
+
+### On HPC (fakeroot required)
+
+Requires fakeroot to be enabled by a system admin:
 
 ```bash
 sudo singularity config fakeroot --add <username>
 ```
 
-The base Docker image is ~10 GB. Redirect the Apptainer cache to scratch to avoid home directory quota issues:
+Redirect cache to scratch to avoid home directory quota limits:
 
 ```bash
 SINGULARITY_CACHEDIR=/scratch/${USER}/.apptainer_cache ./build_singularity.sh
 ```
 
-### Option 2 — Convert from Docker
+### Alternative — convert from local Docker daemon
 
 ```bash
-./build_docker_to_singularity.sh
+docker pull nialljb/fw-supersynth:latest
+singularity build supersynth.sif docker-daemon://nialljb/fw-supersynth:latest
 ```
 
 ---

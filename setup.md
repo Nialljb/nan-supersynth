@@ -114,3 +114,75 @@ CUDA_VISIBLE_DEVICES=0
 | `mri_super_synth` | Core synthesis (FreeSurfer 7-dev) |
 | `mri_convert` | `.mgz` → `.nii.gz` conversion |
 | nibabel, numpy, pandas | Python I/O |
+
+---
+
+## Building on AWS EC2
+
+The `build_singularity.sh` script is written for EC2. All cache and tmp paths default to `$HOME` and `/tmp` — both live on the EBS root volume, so no HPC-specific mounts need to exist.
+
+**Recommended setup:** `g4dn.7xlarge` with a **300 GB EBS root volume**. The GPU is needed only for the post-build `%test` step; any instance with ≥50 GB free on `/tmp` can build the image.
+
+### 1 — Instance and volume sizing
+
+| Resource | Notes |
+|----------|-------|
+| Instance type | Any with ≥50 GB free on root; GPU instance for post-build `%test` |
+| Root EBS volume | **300 GB** (Docker layer extraction needs ~40 GB in `/tmp` alone) |
+| FreeSurfer license | **Embedded in `nialljb/fw-supersynth`** — no separate license file needed |
+
+### 2 — Docker Hub rate limiting
+
+AWS public IPs frequently hit Docker Hub anonymous pull limits (100 pulls / 6 h). Authenticate before building:
+
+```bash
+docker login   # credentials stored in ~/.docker/config.json; Apptainer reads them automatically
+```
+
+Or pre-pull to the local Docker daemon and convert (bypasses registry entirely):
+
+```bash
+docker pull nialljb/fw-supersynth:latest
+singularity build supersynth.sif docker-daemon://nialljb/fw-supersynth:latest
+```
+
+### 3 — Pinning the base image
+
+`supersynth.def` bootstraps from `nialljb/fw-supersynth:latest`. The `:latest` tag is a moving target. To make the build reproducible, pin to the current digest **before** building:
+
+```bash
+docker pull nialljb/fw-supersynth:latest
+docker inspect --format='{{index .RepoDigests 0}}' nialljb/fw-supersynth:latest
+# e.g. nialljb/fw-supersynth@sha256:<hex>
+# Replace the From: line in supersynth.def with the sha256 reference
+```
+
+### 4 — Root vs fakeroot
+
+`build_singularity.sh` automatically adds `--fakeroot` for non-root users. Enable fakeroot once after launching the instance:
+
+```bash
+sudo singularity config fakeroot --add $USER
+```
+
+Alternatively `sudo ./build_singularity.sh` builds as root (no fakeroot needed).
+
+### 5 — Full command sequence
+
+```bash
+# On the EC2 instance (Apptainer must be installed)
+git clone <repo-url>
+cd nan-supersynth
+
+# Enable fakeroot for the instance user (one-time)
+sudo singularity config fakeroot --add $USER
+
+# Authenticate to Docker Hub
+docker login
+
+# Build — cache lands in $HOME/.apptainer_cache, tmp in /tmp/.apptainer_tmp
+./build_singularity.sh
+
+# Verify
+singularity exec --nv supersynth.sif bash /start.sh --help
+```

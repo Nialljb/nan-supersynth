@@ -33,7 +33,7 @@ def find_input_files(input_path):
     """
     p = Path(input_path)
     if p.is_file():
-        if p.suffix in ('.nii', '.gz'):
+        if p.name.endswith('.nii') or p.name.endswith('.nii.gz'):
             return [str(p)]
         raise ValueError(f"Input file does not appear to be NIfTI: {input_path}")
     if p.is_dir():

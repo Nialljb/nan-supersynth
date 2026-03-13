@@ -26,11 +26,15 @@ From: nialljb/fw-supersynth:latest
     export HOME=/root
     export FREESURFER_HOME=/usr/local/freesurfer/7-dev
     export PATH="${FREESURFER_HOME}/bin:${PATH}"
-    export CUDA_VISIBLE_DEVICES=0
+    # Preserve the GPU assignment from SLURM / the host environment;
+    # only default to device 0 if the caller has not set CUDA_VISIBLE_DEVICES.
+    export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
     export LANG="C.UTF-8"
 
 %files
-    ./ /app/
+    # Copy only what the container needs — exclude .git/, build scripts, and data
+    run_supersynth.py /app/run_supersynth.py
+    utils /app/utils
     start.sh /start.sh
 
 %post
@@ -47,8 +51,18 @@ From: nialljb/fw-supersynth:latest
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
     # Install Python dependencies
-    # (FreeSurfer does not need to be sourced at build time — %environment handles runtime)
-    python3 -m pip install --no-cache-dir nibabel numpy pandas
+    # PEP 668 (Python 3.11+ / Ubuntu 23.04+ / Debian Bookworm) marks the system
+    # site-packages as "externally managed" and blocks bare pip installs.
+    # Setting PIP_BREAK_SYSTEM_PACKAGES=1 is the correct override inside a container.
+    # (Older pip simply ignores the variable, so this is safe on all versions.)
+    export PIP_BREAK_SYSTEM_PACKAGES=1
+    python3 -m pip install --no-cache-dir --upgrade pip
+    # Pin major versions: numpy 2.x has breaking API changes; pin below 2 to stay
+    # compatible with nibabel and any PyTorch-linked packages in the base image.
+    python3 -m pip install --no-cache-dir \
+        "nibabel>=3.2,<6" \
+        "numpy>=1.21,<2" \
+        "pandas>=1.3,<3"
 
     # Set permissions on entry points
     chmod +rx /app/run_supersynth.py
