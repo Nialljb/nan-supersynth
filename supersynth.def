@@ -13,12 +13,18 @@ From: nialljb/fw-supersynth:latest
         singularity exec --nv supersynth.sif \
             --input <input.nii.gz> --output <output_dir>
 
+    Memory options (use when CUDA OOM occurs on GPUs with <=16 GB VRAM):
+        --no-test-time-flipping   Skip left-right flip augmentation (~halves
+                                  tile memory, minor accuracy trade-off)
+        --tile-size N             Override GPU tile size (default 160).
+                                  128 uses ~51%% memory, 96 uses ~22%%.
+
     For full options:
         singularity exec --nv supersynth.sif --help
 
 %labels
     Author Niall Bourke
-    Version 0.1.0
+    Version 0.2.0
     Description SuperSynth: deep learning MRI contrast synthesis
     License MIT
 
@@ -29,6 +35,9 @@ From: nialljb/fw-supersynth:latest
     # Preserve the GPU assignment from SLURM / the host environment;
     # only default to device 0 if the caller has not set CUDA_VISIBLE_DEVICES.
     export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+    # Eliminate CUDA allocator fragmentation regardless of entrypoint used.
+    # Required when mri_super_synth/fspython are invoked directly (not via start.sh).
+    export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
     export LANG="C.UTF-8"
 
 %files
@@ -64,6 +73,16 @@ From: nialljb/fw-supersynth:latest
         "numpy>=1.21,<2" \
         "pandas>=1.3,<3"
 
+    # -----------------------------------------------------------------------
+    # Replace the CPU-only PyTorch bundled with FreeSurfer with a CUDA build.
+    # The host driver (>= 520) is forward-compatible with CUDA 12.1 wheels.
+    # torchvision is omitted intentionally — mri_super_synth does not use it.
+    # -----------------------------------------------------------------------
+    FSPY="/usr/local/freesurfer/7-dev/python/bin/python3"
+    ${FSPY} -m pip install --no-cache-dir \
+        "torch==2.1.2+cu121" \
+        --index-url https://download.pytorch.org/whl/cu121
+
     # Set permissions on entry points
     chmod +rx /app/run_supersynth.py
     chmod +rx /start.sh
@@ -84,6 +103,10 @@ From: nialljb/fw-supersynth:latest
 
     echo "Testing Python environment..."
     python3 -c "import nibabel, numpy, pandas; print('Python deps OK')"
+
+    echo "Testing CUDA PyTorch in fspython..."
+    /usr/local/freesurfer/7-dev/python/bin/python3 -c \
+        "import torch; assert torch.version.cuda is not None, 'CPU-only torch — rebuild failed'; print('PyTorch', torch.__version__, '/ CUDA toolkit', torch.version.cuda, '— OK')"
 
     echo "Testing entry point..."
     python3 /app/run_supersynth.py --help > /dev/null || exit 1

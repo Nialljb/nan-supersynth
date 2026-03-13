@@ -72,18 +72,45 @@ singularity build supersynth.sif docker-daemon://nialljb/fw-supersynth:latest
 
 ## Usage
 
-### Basic
+### Basic (direct call)
 
 ```bash
-singularity exec --nv supersynth.sif bash /start.sh \
-    --input /data/sub-01/ses-01/anat/sub-01_ses-01_T1w.nii.gz \
-    --output /results/sub-01/ses-01/supersynth
+singularity exec --nv --bind /data/:/data/ supersynth.sif \
+    python3 /app/run_supersynth.py \
+    --input /data/sub-01_ses-01_T2w.nii.gz \
+    --output /data/output
+```
+
+For lower-VRAM GPUs (e.g. T4), use memory-saving flags:
+
+```bash
+singularity exec --nv --bind /data/:/data/ supersynth.sif \
+    python3 /app/run_supersynth.py \
+    --input /data/sub-01_ses-01_T2w.nii.gz \
+    --output /data/output \
+    --no-test-time-flipping \
+    --tile-size 128
+```
+
+Why `--bind` is required: the container can only access host paths that are
+mounted into it. Binding `/data:/data` keeps host and container paths identical,
+so paths passed to `--input` and `--output` resolve correctly.
+
+### Alternate entrypoint
+
+You can also run through `/start.sh` (equivalent behavior):
+
+```bash
+singularity exec --nv --bind /data/:/data/ supersynth.sif \
+    bash /start.sh \
+    --input /data/sub-01_ses-01_T2w.nii.gz \
+    --output /data/output
 ```
 
 ### Full options
 
 ```bash
-singularity exec --nv supersynth.sif bash /start.sh --help
+singularity exec --nv supersynth.sif python3 /app/run_supersynth.py --help
 ```
 
 | Argument | Default | Description |
