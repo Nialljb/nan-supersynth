@@ -3,4 +3,5 @@ data/*
 
 # Ignore Apptainer cache directory
 .apptainer_cache
+*.sif
 
